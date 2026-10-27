@@ -1,0 +1,154 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Controle de Estoque</title><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#1d5fd1"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mu:#667085;--bd:#e3e6ea;--ac:#1d5fd1;--ac2:#e8f0fd;--rd:#c62828;--gn:#1b7f3b}
+@media(prefers-color-scheme:dark){:root{--bg:#121417;--card:#1c2025;--tx:#eceff3;--mu:#9aa4b2;--bd:#2b3138;--ac:#6aa3ff;--ac2:#1d2b44;--rd:#ff7b7b;--gn:#5fd187}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.4 Arial,sans-serif;background:var(--bg);color:var(--tx);padding-bottom:76px}
+#main{max-width:760px;margin:0 auto;padding:8px 10px}
+.tools{position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:5}
+input,select{width:100%;font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:11px 12px}
+.row{display:flex;gap:8px;margin-top:8px}
+.card{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px 12px;margin:8px 0}
+.inf{flex:1;min-width:0}.inf b{display:block;font-size:15px}.meta{color:var(--mu);font-size:12.5px;margin-top:3px}
+.tag{display:inline-block;background:var(--ac2);color:var(--ac);border-radius:6px;padding:1px 7px;font-weight:700;font-size:12px;margin-right:6px}.tag.no{background:transparent;color:var(--mu);font-weight:400}
+.q{text-align:center;min-width:46px}.n{font-size:20px;font-weight:700;display:block}.n.z,.n.low,.n.out{color:var(--rd)}.q small{color:var(--mu);font-size:11px}
+button{font:inherit;cursor:pointer;border:0;border-radius:10px}
+.add{background:var(--ac);color:#fff;width:46px;height:46px;font-size:22px;font-weight:700}.add:disabled{opacity:.3}
+.x{background:transparent;color:var(--mu);font-size:20px;width:36px;height:36px}
+.step{display:flex;gap:4px;align-items:center}.step button{width:38px;height:40px;background:var(--ac2);color:var(--ac);font-size:20px}.step input{width:60px;text-align:center;padding:9px 4px}
+.form{margin-top:14px;display:grid;gap:8px}.pri{background:var(--ac);color:#fff;padding:14px;font-weight:700;font-size:16px}
+.sec{background:var(--card);color:var(--tx);border:1px solid var(--bd);padding:13px;text-align:left;width:100%;margin:6px 0}.dng{color:var(--rd)}
+.empty{text-align:center;color:var(--mu);padding:40px 10px}.est{opacity:.55}.est b{text-decoration:line-through}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0)}
+nav button{flex:1;background:none;color:var(--mu);padding:12px 2px;font-size:13px;border-radius:0}nav button.on{color:var(--ac);font-weight:700}
+nav i{font-style:normal;background:var(--rd);color:#fff;border-radius:9px;padding:0 6px;font-size:11px;margin-left:3px}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;display:none;z-index:9;max-width:90%}
+.note{color:var(--mu);font-size:13px;margin:10px 2px}
+.gh{cursor:pointer}.chev{color:var(--ac);width:14px;font-size:14px}
+.sm2{flex:1;background:var(--card);color:var(--tx);border:1px solid var(--bd);padding:9px;font-size:13px}
+.sh{font-weight:700;margin:18px 2px 4px;padding-bottom:4px;border-bottom:2px solid var(--ac)}
+.grp{background:var(--card);border:1px solid var(--bd);border-radius:12px;margin:12px 0;overflow:hidden}
+.gh{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--ac2)}.gh>div{flex:1}
+.it{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid var(--bd)}
+.sm{background:var(--card);color:var(--rd);border:1px solid var(--bd);padding:6px 10px;font-size:12px}
+</style></head><body>
+<div id="main"></div><nav id="nav"></nav><div id="toast"></div>
+<script>
+const BASE=[];
+const K='estoque_saidas_v1',$=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const byId={},ORIG=BASE.slice();
+let cx=new Set(),S=load(),tab='est',q='',fs='',ft='',fk='',hq='',who='',obs='';applyCat();if(!BASE.length)tab='bkp';
+function applyCat(){BASE.splice(0,BASE.length,...(S.cat||ORIG));for(const k in byId)delete byId[k];BASE.forEach(r=>byId[r[0]]=r)}
+function load(){try{const x=JSON.parse(localStorage.getItem(K));if(x&&x.hist)return x}catch(e){}return{stock:{},hist:[],cart:{},seq:0}}
+function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){toast('Não foi possível salvar neste navegador. Baixe o backup.')}}
+const stock=id=>S.stock[id]??byId[id][6];
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',2600)}
+const fmt=ts=>new Date(ts).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'});
+const tagS=c=>c?`<span class=tag>Cód. no Sistema: ${esc(c)}</span>`:'';
+function nav(){const n=Object.keys(S.cart).length;$('#nav').innerHTML=[['est','Estoque'],['sai','Saída'+(n?`<i>${n}</i>`:'')],['his','Histórico'],['bkp','Planilha']].map(([k,l])=>`<button class="${tab==k?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
+function go(t){tab=t;render()}
+function render(){nav();({est:vEst,sai:vSai,his:vHis,bkp:vBkp})[tab]();scrollTo(0,0)}
+function opts(arr,sel,all){return `<option value="">${all}</option>`+[...new Set(arr)].sort().map(s=>`<option ${s==sel?'selected':''}>${esc(s)}</option>`).join('')}
+function vEst(){
+ $('#main').innerHTML=`<div class=tools><input id=q type=search placeholder="Buscar por nome ou código" value="${esc(q)}"><div class=row><select id=fs>${opts(BASE.map(r=>r[4]),fs,'Todos os setores')}</select><select id=ft>${opts(BASE.map(r=>r[3]),ft,'Todos os tipos')}</select></div><div class=row><select id=fk><option value="">Todas as situações</option><option value="low" ${fk?'selected':''}>Zerados ou abaixo do mínimo (${nLow()})</option></select></div></div><div id=list></div>`;
+ $('#q').oninput=e=>{q=e.target.value;lEst()};$('#fs').onchange=e=>{fs=e.target.value;lEst()};$('#ft').onchange=e=>{ft=e.target.value;lEst()};$('#fk').onchange=e=>{fk=e.target.value;lEst()};lEst()}
+const low=x=>stock(x[0])<=x[5],nLow=()=>BASE.filter(low).length;
+function lEst(){const w=norm(q).split(/\s+/).filter(Boolean);
+ const r=BASE.filter(x=>(!fs||x[4]==fs)&&(!ft||x[3]==ft)&&(!fk||low(x))&&w.every(t=>norm(x[1]+' '+x[7]+' '+x[4]+' '+x[3]).includes(t)));
+ if(!r.length){$('#list').innerHTML=BASE.length?'<p class=empty>Nenhum item encontrado.</p>':'<p class=empty>Nenhum item carregado.<br>Vá em Planilha e toque em Importar planilha (.xlsx).</p>';return}
+ if(!fk){$('#list').innerHTML=r.map(card).join('');return}
+ const rk=s=>norm(s)=='material'?0:norm(s)=='ferramental'?2:1,ts=[...new Set(r.map(x=>x[3]))].sort((a,b)=>rk(a)-rk(b)||a.localeCompare(b));
+ $('#list').innerHTML=ts.map(s=>{const a=r.filter(x=>x[3]==s);return `<div class=sh>${esc(s)} (${a.length})</div>`+a.map(card).join('')}).join('')}
+function card(x){const s=stock(x[0]),c=S.cart[x[0]]||0,low=x[5]>0&&s<=x[5];
+ return `<div class=card><div class=inf><b>${esc(x[1])}</b><div class=meta>${x[7]?tagS(x[7]):'<span class="tag no">sem código</span>'}${esc(x[4])} · ${esc(x[3])} · mín. ${x[5]}</div></div><div class=q><span class="n ${s<=0?'z':low?'low':''}">${s}</span><small>${esc(x[2])}</small></div><button class=add onclick="add(${x[0]})" ${s<=0?'disabled':''}>${c?'✓'+c:'+'}</button></div>`}
+function add(id){S.cart[id]=Math.min((S.cart[id]||0)+1,stock(id));save();nav();lEst()}
+function vSai(){const ids=Object.keys(S.cart);
+ if(!ids.length){$('#main').innerHTML='<p class=empty>A lista de saída está vazia.<br>Em Estoque, toque em + nos itens que saíram.</p>';return}
+ $('#main').innerHTML=ids.map(id=>{const x=byId[id],s=stock(id);return `<div class=card><div class=inf><b>${esc(x[1])}</b><div class=meta>${tagS(x[7])}em estoque: ${s} ${esc(x[2])} · mín. ${x[5]}</div></div><div class=step><button onclick="chg(${id},-1)">−</button><input type=number inputmode=numeric value=${S.cart[id]} onchange="setq(${id},this.value)"><button onclick="chg(${id},1)">+</button></div><button class=x onclick="setq(${id},0)">✕</button></div>`}).join('')+
+ `<div class=form><input placeholder="Retirado por (opcional)" value="${esc(who)}" oninput="who=this.value"><input placeholder="Destino / observação (opcional)" value="${esc(obs)}" oninput="obs=this.value"><button class=pri onclick="conf()">Confirmar saída e dar baixa</button></div>`}
+function chg(id,d){setq(id,(S.cart[id]||0)+d)}
+function setq(id,v){v=Math.min(parseInt(v)||0,stock(id));if(v<1)delete S.cart[id];else S.cart[id]=v;save();nav();vSai()}
+function conf(){const ids=Object.keys(S.cart);if(!ids.length)return;const ts=new Date().toISOString(),lote=(S.lote=(S.lote||0)+1);
+ ids.forEach(id=>{const x=byId[id],a=stock(id),n=Math.min(S.cart[id],a);if(n<1)return;S.stock[id]=a-n;
+  S.hist.unshift({id:++S.seq,ts,lote,item:+id,desc:x[1],und:x[2],setor:x[4],tipo:x[3],sisc:x[7]||'',qtd:n,antes:a,depois:a-n,quem:who,obs,est:false})});
+ S.cart={};who=obs='';save();toast('Saída registrada e estoque atualizado.');go('his')}
+function vHis(){$('#main').innerHTML=`<div class=tools><input id=hq type=search placeholder="Buscar no histórico (nome, código, quem retirou)" value="${esc(hq)}"><div class=row><button class=sm2 onclick="cxAll(1)">Recolher tudo</button><button class=sm2 onclick="cxAll(0)">Expandir tudo</button></div></div><div id=hl></div>`;$('#hq').oninput=e=>{hq=e.target.value;lHis()};lHis()}
+function lHis(){const w=norm(hq).split(/\s+/).filter(Boolean),g=new Map();
+ S.hist.filter(h=>w.every(t=>norm(h.desc+' '+h.sisc+' '+h.quem+' '+h.obs+' '+h.setor).includes(t))).forEach(h=>{const k=h.lote||h.ts;if(!g.has(k))g.set(k,[]);g.get(k).push(h)});
+ $('#hl').innerHTML=g.size?[...g.values()].map(a=>{const h=a[0],k=h.lote||h.ts,col=!hq&&cx.has(String(k));return `<div class=grp><div class=gh onclick="tg('${k}')"><span class=chev>${col?'▸':'▾'}</span><div><b>${h.lote?'Saída nº '+h.lote+' · ':''}${fmt(h.ts)}</b><div class=meta>${a.length} ${a.length>1?'itens':'item'}${h.quem?' · Retirado por '+esc(h.quem):''}${h.obs?' · '+esc(h.obs):''}</div></div>${a.filter(x=>!x.est).length>1?`<button class=sm onclick="event.stopPropagation();estG(${h.id})">Estornar tudo</button>`:''}</div>${col?'':a.map(x=>`<div class="it ${x.est?'est':''}"><div class=inf><b>${esc(x.desc)}</b><div class=meta>${tagS(x.sisc)}${esc(x.setor)}</div></div><div class=q><span class="n out">−${x.qtd}</span><small>${x.antes}→${x.depois}</small></div>${x.est?'<span class=tag>estornado</span>':`<button class=x title="Estornar" onclick="est(${x.id})">↺</button>`}</div>`).join('')}</div>`}).join(''):'<p class=empty>Nenhuma saída registrada ainda.</p>'}
+function tg(k){k=String(k);cx.has(k)?cx.delete(k):cx.add(k);lHis()}
+function cxAll(f){cx=f?new Set(S.hist.map(h=>String(h.lote||h.ts))):new Set();lHis()}
+function est(id){const h=S.hist.find(x=>x.id==id);if(!h||h.est||!confirm('Estornar este item? A quantidade volta ao estoque.'))return;if(!byId[h.item])return toast('Este item não existe mais na planilha.');S.stock[h.item]=stock(h.item)+h.qtd;h.est=true;save();lHis()}
+function estG(id){const h=S.hist.find(x=>x.id==id);if(!h)return;const k=h.lote||h.ts,a=S.hist.filter(x=>(x.lote||x.ts)==k&&!x.est&&byId[x.item]);if(!a.length||!confirm('Estornar todos os '+a.length+' itens desta saída? As quantidades voltam ao estoque.'))return;a.forEach(x=>{S.stock[x.item]=stock(x.item)+x.qtd;x.est=true});save();lHis()}
+function vBkp(){$('#main').innerHTML=`<p class=note>Fluxo: baixe a planilha atualizada, adicione os itens novos nela pelo Excel e importe de volta aqui. Tudo funciona sem internet.</p>
+<button class=sec onclick="xl()"><b>Baixar planilha atualizada (.xlsx)</b><div class=meta>Mesmas colunas da original, com o estoque já baixado + aba Histórico de saídas</div></button>
+<button class=sec onclick="$('#xf').click()"><b>Importar planilha (.xlsx)</b><div class=meta>Carrega os itens e as quantidades da planilha no app. O histórico de saídas é mantido</div></button><input id=xf type=file accept=".xlsx" hidden onchange="imp(this.files[0]);this.value=''">
+<button class=sec onclick="xl(1)"><b>Baixar modelo de planilha (vazio)</b><div class=meta>Só os cabeçalhos, para preencher e importar</div></button>
+<button class=sec onclick="bk()"><b>Baixar backup completo (.json)</b><div class=meta>Estoque, histórico e lista em andamento, para levar ao outro aparelho</div></button>
+<button class=sec onclick="$('#rf').click()"><b>Restaurar backup (.json)</b><div class=meta>Substitui os dados deste aparelho pelos do arquivo</div></button><input id=rf type=file accept=".json" hidden onchange="rs(this.files[0])">
+<button class="sec dng" onclick="rz()"><b>Limpar todos os dados</b><div class=meta>Apaga os itens importados, o histórico e a lista em andamento deste aparelho</div></button>`}
+function dl(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
+const day=()=>new Date().toISOString().slice(0,10);
+function bk(){dl(new Blob([JSON.stringify({v:1,S})],{type:'application/json'}),`backup_estoque_${day()}.json`)}
+function rs(f){if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result).S;if(!x||!Array.isArray(x.hist)||!x.stock)throw 0;x.cart=x.cart||{};S=x;applyCat();save();toast('Backup restaurado.');render()}catch(e){toast('Arquivo de backup inválido.')}};r.readAsText(f)}
+function rz(){if(confirm('Apagar itens importados, histórico e lista em andamento deste aparelho?')){S={stock:{},hist:[],cart:{},seq:0};applyCat();save();render()}}
+/* ---- importação .xlsx (sem bibliotecas) ---- */
+async function inflate(b){return await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text()}
+async function unzip(buf){const u=new Uint8Array(buf),dv=new DataView(buf),td=new TextDecoder();let e=u.length-22;while(e>=0&&dv.getUint32(e,true)!=0x06054b50)e--;if(e<0)throw 0;
+ const n=dv.getUint16(e+10,true),out={};let p=dv.getUint32(e+16,true);
+ for(let i=0;i<n;i++){const m=dv.getUint16(p+10,true),cs=dv.getUint32(p+20,true),nl=dv.getUint16(p+28,true),xl=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),lo=dv.getUint32(p+42,true),name=td.decode(u.subarray(p+46,p+46+nl));
+  const st=lo+30+dv.getUint16(lo+26,true)+dv.getUint16(lo+28,true),raw=u.subarray(st,st+cs);
+  if(/\.(xml|rels)$/.test(name))out[name]=m==0?td.decode(raw):await inflate(raw);p+=46+nl+xl+cl}
+ return out}
+const cidx=r=>{let n=0;for(const ch of r.replace(/\d/g,''))n=n*26+ch.charCodeAt(0)-64;return n-1};
+async function readXlsx(buf){const z=await unzip(buf),P=s=>new DOMParser().parseFromString(s,'application/xml'),T=el=>[...el.getElementsByTagName('t')].map(x=>x.textContent).join('');
+ const sh=[...P(z['xl/workbook.xml']).getElementsByTagName('sheet')],pk=sh.find(s=>norm(s.getAttribute('name'))=='estoque')||sh[0];
+ const rid=pk.getAttribute('r:id')||pk.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id');
+ const tg=[...P(z['xl/_rels/workbook.xml.rels']).getElementsByTagName('Relationship')].find(r=>r.getAttribute('Id')==rid).getAttribute('Target');
+ const ss=z['xl/sharedStrings.xml']?[...P(z['xl/sharedStrings.xml']).getElementsByTagName('si')].map(T):[],rows=[];
+ for(const r of P(z['xl/'+tg.replace(/^\/?(xl\/)?/,'')]).getElementsByTagName('row')){const a=[];
+  for(const c of r.getElementsByTagName('c')){const t=c.getAttribute('t'),v=c.getElementsByTagName('v')[0];let x=null;
+   if(t=='inlineStr')x=T(c);else if(v){x=v.textContent;if(t=='s')x=ss[+x];else if(!t||t=='n')x=x===''||isNaN(x)?x:+x}
+   a[cidx(c.getAttribute('r'))]=x}
+  rows.push(a)}
+ return rows}
+async function imp(f){if(!f)return;
+ try{const rows=await readXlsx(await f.arrayBuffer()),hd=Array.from(rows[0]||[],h=>norm(h).trim()),ix=k=>hd.findIndex(k);
+  const C={item:ix(h=>h=='item'),desc:ix(h=>h.startsWith('descri')),und:ix(h=>h.startsWith('und')),tipo:ix(h=>h=='tipo'),setor:ix(h=>h=='setor'),min:ix(h=>h.includes('minima')),qtd:ix(h=>h.includes('estoque')),sisc:ix(h=>h.includes('siscofis')||h.includes('no sistema')),sinapi:ix(h=>h.includes('sinapi')||/^cod\.?\s*2$/.test(h)),orig:ix(h=>h=='origem')};
+  if(C.desc<0||C.qtd<0)throw 0;
+  const g=(r,i)=>i<0||r[i]==null?'':r[i],used=new Set(),out=[];let mx=0;
+  rows.slice(1).forEach(r=>{const n=+g(r,C.item);if(n>mx)mx=n});
+  rows.slice(1).forEach(r=>{const d=String(g(r,C.desc)).trim();if(!d)return;let id=+g(r,C.item);if(!id||used.has(id))id=++mx;used.add(id);
+   out.push([id,d,String(g(r,C.und)||'un'),String(g(r,C.tipo)||'Material'),String(g(r,C.setor)||'Sem setor'),+g(r,C.min)||0,Math.max(0,+g(r,C.qtd)||0),String(g(r,C.sisc)).trim(),String(g(r,C.sinapi)).trim(),String(g(r,C.orig)),String(g(r,10))])});
+  if(!out.length)throw 0;
+  if(!confirm(`Importar ${out.length} itens? As quantidades do app passam a ser as da planilha e a lista de saída em andamento é limpa. O histórico de saídas é mantido.`))return;
+  S.cat=out;S.stock={};S.cart={};applyCat();save();toast(`${out.length} itens importados.`);render()
+ }catch(e){toast('Não consegui ler a planilha. Use um arquivo .xlsx.')}}
+/* ---- exportação .xlsx (sem bibliotecas) ---- */
+const xe=s=>String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const col=i=>String.fromCharCode(65+i);
+function sheet(rows,w){return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${w.map((x,i)=>`<col min="${i+1}" max="${i+1}" width="${x}" customWidth="1"/>`).join('')}</cols><sheetData>${rows.map((r,ri)=>`<row r="${ri+1}">${r.map((v,ci)=>{if(v==null||v==='')return'';const ref=col(ci)+(ri+1),st=ri?'':' s="1"';return typeof v=='number'?`<c r="${ref}"${st}><v>${v}</v></c>`:`<c r="${ref}"${st} t="inlineStr"><is><t xml:space="preserve">${xe(v)}</t></is></c>`}).join('')}</row>`).join('')}</sheetData><autoFilter ref="A1:${col(w.length-1)}${rows.length}"/></worksheet>`}
+function crc32(b){const t=crc32.t||(crc32.t=Array.from({length:256},(_,n)=>{let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;return c>>>0}));let r=-1;for(let i=0;i<b.length;i++)r=t[(r^b[i])&255]^(r>>>8);return(r^-1)>>>0}
+function zip(files){const en=new TextEncoder(),parts=[],cd=[];let off=0;
+ for(const f of files){const nm=en.encode(f.name),d=en.encode(f.data),crc=crc32(d);
+  const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(12,0x21,true);h.setUint32(14,crc,true);h.setUint32(18,d.length,true);h.setUint32(22,d.length,true);h.setUint16(26,nm.length,true);
+  const c=new DataView(new ArrayBuffer(46));c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x0800,true);c.setUint16(14,0x21,true);c.setUint32(16,crc,true);c.setUint32(20,d.length,true);c.setUint32(24,d.length,true);c.setUint16(28,nm.length,true);c.setUint32(42,off,true);
+  parts.push(new Uint8Array(h.buffer),nm,d);cd.push(new Uint8Array(c.buffer),nm);off+=30+nm.length+d.length}
+ const cl=cd.reduce((a,x)=>a+x.length,0),e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cl,true);e.setUint32(16,off,true);
+ return new Blob([...parts,...cd,new Uint8Array(e.buffer)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})}
+function xl(m){const H='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',NS='http://schemas.openxmlformats.org/',M=NS+'spreadsheetml/2006/main',R=NS+'officeDocument/2006/relationships';
+ const s1=[['Item','Descrição','Und Medida','Tipo','Setor','Quantidade Mínima','Quantidade em estoque','Cód. no Sistema','Cód. 2','Origem','']].concat(m?[]:BASE.map(r=>{const a=r.slice();a[6]=stock(r[0]);return a}));
+ const s2=[['Saída nº','Data','Hora','Item','Descrição','Cód. no Sistema','Und','Setor','Qtd. saída','Estoque antes','Estoque depois','Retirado por','Observação','Status']].concat(m?[]:S.hist.map(h=>{const d=new Date(h.ts);return[h.lote||'',d.toLocaleDateString('pt-BR'),d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),h.item,h.desc,h.sisc,h.und,h.setor,h.qtd,h.antes,h.depois,h.quem,h.obs,h.est?'Estornada':'Saída']}));
+ const f=[
+ {name:'[Content_Types].xml',data:`${H}<Types xmlns="${NS}package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`},
+ {name:'_rels/.rels',data:`${H}<Relationships xmlns="${NS}package/2006/relationships"><Relationship Id="rId1" Type="${R}/officeDocument" Target="xl/workbook.xml"/></Relationships>`},
+ {name:'xl/workbook.xml',data:`${H}<workbook xmlns="${M}" xmlns:r="${R}"><sheets><sheet name="Estoque" sheetId="1" r:id="rId1"/><sheet name="Histórico de saídas" sheetId="2" r:id="rId2"/></sheets></workbook>`},
+ {name:'xl/_rels/workbook.xml.rels',data:`${H}<Relationships xmlns="${NS}package/2006/relationships"><Relationship Id="rId1" Type="${R}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${R}/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="${R}/styles" Target="styles.xml"/></Relationships>`},
+ {name:'xl/styles.xml',data:`${H}<styleSheet xmlns="${M}"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs></styleSheet>`},
+ {name:'xl/worksheets/sheet1.xml',data:sheet(s1,[7,48,12,12,14,10,12,14,12,10,30])},
+ {name:'xl/worksheets/sheet2.xml',data:sheet(s2,[9,11,8,7,48,14,8,14,10,10,10,18,28,11])}];
+ dl(zip(f),m?'Modelo_planilha_estoque.xlsx':`Estoque_atualizado_${day()}.xlsx`)}
+render();
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script></body></html>
