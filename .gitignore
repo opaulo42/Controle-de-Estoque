@@ -1,0 +1,5 @@
+# nunca suba planilhas nem backups com os materiais
+*.xlsx
+*.xls
+*.csv
+backup_estoque_*.json
