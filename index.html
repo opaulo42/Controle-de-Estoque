@@ -78,7 +78,7 @@ function vHis(){$('#main').innerHTML=`<div class=tools><input id=hq type=search 
 function lHis(){const w=norm(hq).split(/\s+/).filter(Boolean),g=new Map();
  S.hist.filter(h=>w.every(t=>norm(h.desc+' '+h.sisc+' '+h.quem+' '+h.obs+' '+h.setor).includes(t))).forEach(h=>{const k=gk(h);if(!g.has(k))g.set(k,[]);g.get(k).push(h)});
  $('#hl').innerHTML=g.size?[...g.values()].map(a=>{const h=a[0],k=gk(h),col=!hq&&cx.has(String(k));return `<div class=grp><div class=gh onclick="tg('${k}')"><span class=chev>${col?'▸':'▾'}</span><div><b>${S.g&&S.g.sid&&!h.env?'Não salva · ':h.lote?'Saída nº '+h.lote+' · ':''}${fmt(h.ts)}</b><div class=meta>${a.length} ${a.length>1?'itens':'item'}${h.quem?' · Retirado por '+esc(h.quem):''}${h.obs?' · '+esc(h.obs):''}</div></div>${a.filter(x=>!x.est).length>1?`<button class=sm onclick="event.stopPropagation();estG(${h.id})">Estornar tudo</button>`:''}</div>${col?'':a.map(x=>`<div class="it ${x.est?'est':''}"><div class=inf><b>${esc(x.desc)}</b><div class=meta>${tagS(x.sisc)}${esc(x.setor)}</div></div><div class=q><span class="n out">−${x.qtd}</span><small>${x.antes}→${x.depois}</small></div>${x.est?'<span class=tag>estornado</span>':`<button class=x title="Estornar" onclick="est(${x.id})">↺</button>`}</div>`).join('')}</div>`}).join(''):'<p class=empty>Nenhuma saída registrada ainda.</p>'}
-const gk=h=>(h.leg?'l':h.env?'e':'p')+(h.lote||h.ts);
+const gk=h=>(h.leg?'l':h.env?'e':'p')+(h.lote||0)+'@'+String(h.ts).slice(0,16);
 function tg(k){k=String(k);cx.has(k)?cx.delete(k):cx.add(k);lHis()}
 function cxAll(f){cx=f?new Set(S.hist.map(gk)):new Set();lHis()}
 function est(id){const h=S.hist.find(x=>x.id==id);if(!h||h.est||!confirm('Estornar este item? A quantidade volta ao estoque.'))return;if(!byId[h.item])return toast('Este item não existe mais na planilha.');S.stock[h.item]=stock(h.item)+h.qtd;h.est=true;h.estEnv=false;h.estTs=new Date().toISOString();save();nav();lHis()}
@@ -151,7 +151,7 @@ function gBox(){if(!location.protocol.startsWith('http'))return '<p class=note>A
 function gCfg(){const cid=$('#gc').value.trim(),sid=gid($('#gs').value);if(!cid||!sid)return toast('Informe o ID do cliente Google e o link da planilha.');
  const g=S.g||{};if(g.sid!=sid){if(pend()&&!confirm('Há '+pend()+' saída(s) não salvas que não serão enviadas à nova planilha. Continuar?'))return;S.hist.forEach(h=>{h.env=true;h.estEnv=true})}
  S.g={...g,cid,sid};save();nav();gis().catch(()=>{});toast('Planilha vinculada.');vBkp()}
-const HS='Histórico de saídas',VER='2026-11-03 h2';
+const HS='Histórico de saídas',VER='2026-11-03 h3';
 function cmp(d,h){let y,m,dd,H=0,M=0;
  if(typeof d=='number'){const x=new Date((d-25569)*864e5);y=x.getUTCFullYear();m=x.getUTCMonth()+1;dd=x.getUTCDate()}
  else{const a=String(d).match(/(\d+)\/(\d+)\/(\d+)/);if(!a)return null;dd=+a[1];m=+a[2];y=+a[3]}
@@ -159,15 +159,13 @@ function cmp(d,h){let y,m,dd,H=0,M=0;
  return[y,m,dd,H,M]}
 const hkey=(c,ds,n)=>c.join('-')+'|'+norm(ds)+'|'+n;
 const tkey=ts=>{const x=new Date(ts);return[x.getFullYear(),x.getMonth()+1,x.getDate(),x.getHours(),x.getMinutes()]};
-function hFromSheet(rows){const hd=Array.from(rows[0]||[],h=>norm(h).trim()),ix=f=>hd.findIndex(f);
- const K={lote:ix(h=>h.startsWith('saida')),dt:ix(h=>h=='data'),hr:ix(h=>h=='hora'),item:ix(h=>h=='item'),desc:ix(h=>h.startsWith('descri')),sisc:ix(h=>h.includes('no sistema')||h.includes('siscofis')),und:ix(h=>h=='und'),setor:ix(h=>h=='setor'),qtd:ix(h=>h.startsWith('qtd')),ant:ix(h=>h.includes('antes')),dep:ix(h=>h.includes('depois')),quem:ix(h=>h.startsWith('retirado')),obs:ix(h=>h.startsWith('observ')),sta:ix(h=>h=='status')};
- if(K.dt<0||K.qtd<0||K.item<0)return[];
- const g=(r,i)=>i<0||r[i]==null?'':r[i],L=[],E=[];
- rows.forEach((r,i)=>{if(!i)return;const c=cmp(g(r,K.dt),g(r,K.hr)),n=+g(r,K.qtd);if(!c||!n)return;
-  const o={lote:+g(r,K.lote)||0,ts:new Date(c[0],c[1]-1,c[2],c[3],c[4]).toISOString(),item:+g(r,K.item),desc:String(g(r,K.desc)),sisc:String(g(r,K.sisc)),und:String(g(r,K.und)),setor:String(g(r,K.setor)),tipo:'',qtd:Math.abs(n),antes:+g(r,K.ant)||0,depois:+g(r,K.dep)||0,quem:String(g(r,K.quem)),obs:String(g(r,K.obs)),est:norm(g(r,K.sta))=='estornada',env:true,estEnv:norm(g(r,K.sta))=='estornada',_c:c};
-  (n<0?E:L).push(o)});
+function hFromSheet(rows){const isD=v=>typeof v=='number'?v>20000:/\d+\/\d+\/\d+/.test(String(v==null?'':v)),L=[],E=[];
+ rows.forEach(r=>{let o;if(isD(r[1]))o=0;else if(isD(r[0]))o=-1;else return;
+  const v=j=>{const x=r[j+o];return x==null?'':x},c=cmp(v(1),v(2)),n=+v(8);if(!c||!n)return;
+  const e0=norm(v(13))=='estornada';
+  (n<0?E:L).push({lote:o?0:+v(0)||0,ts:new Date(c[0],c[1]-1,c[2],c[3],c[4]).toISOString(),item:+v(3),desc:String(v(4)),sisc:String(v(5)),und:String(v(6)),setor:String(v(7)),tipo:'',qtd:Math.abs(n),antes:+v(9)||0,depois:+v(10)||0,quem:String(v(11)),obs:String(v(12)),est:e0,env:true,estEnv:e0,_c:c})});
  E.forEach(e=>{const m=L.find(x=>x.lote==e.lote&&x.item==e.item&&!x.est)||L.find(x=>x.lote==e.lote&&norm(x.desc)==norm(e.desc)&&!x.est);if(m){m.est=true;m.estEnv=true;m.estTs=e.ts}});
- return L}
+ L.tot=L.length+E.length;return L}
 async function pull0(){const{ts,main}=await gTab(),{out}=toCat(await gRead(main)),hn=ts.find(x=>norm(x).trim()=='historico de saidas'),hs=hn?await gRead(hn):[],sh=hFromSheet(hs),D={},ids=new Set(out.map(r=>r[0]));out.forEach(r=>D[norm(r[1])]=r[0]);
  const keys=new Set(sh.map(o=>hkey(o._c,o.desc,o.qtd))),pe=S.hist.filter(h=>h.env&&h.est&&!h.estEnv),P=S.hist.filter(h=>!h.env),R=S.hist.filter(h=>h.env&&!keys.has(hkey(tkey(h.ts),h.desc,h.qtd)));
  R.forEach(h=>{h.leg=true});
@@ -175,7 +173,7 @@ async function pull0(){const{ts,main}=await gTab(),{out}=toCat(await gRead(main)
  S.hist=[...P,...R,...sh].sort((a,b)=>new Date(b.ts)-new Date(a.ts)||(b.lote||0)-(a.lote||0));
  S.hist.forEach(h=>{if(!ids.has(h.item)&&D[norm(h.desc)])h.item=D[norm(h.desc)]});
  const d=deltas();S.cat=out;S.stock={};out.forEach(r=>{if(d[r[0]])S.stock[r[0]]=Math.max(0,r[6]+d[r[0]])});applyCat();
- Object.keys(S.cart).forEach(i=>{if(!byId[i])delete S.cart[i];else{S.cart[i]=Math.min(S.cart[i],stock(+i));if(S.cart[i]<1)delete S.cart[i]}});save();nav();return{tab:!!hn,rows:Math.max(0,hs.length-1),ok:sh.length}}
+ Object.keys(S.cart).forEach(i=>{if(!byId[i])delete S.cart[i];else{S.cart[i]=Math.min(S.cart[i],stock(+i));if(S.cart[i]<1)delete S.cart[i]}});save();nav();return{tab:!!hn,rows:Math.max(0,hs.length-1),ok:sh.tot||0}}
 function gPull(){return gRun('Atualizando…',async()=>{const i=await pull0();toast(`Atualizado: ${BASE.length} itens. Histórico: ${i.tab?`${i.ok} de ${i.rows} linhas lidas`:'aba Histórico de saídas não encontrada'}.`);vBkp()})}
 function gSave(){return gRun('Salvando…',async()=>{if(!pend())return toast('Nada para salvar.');
  const sid=S.g.sid,{ts,main}=await gTab(),H=ts.find(x=>norm(x).trim()=='historico de saidas')||'Histórico de saídas',{out,C,rowOf}=toCat(await gRead(main)),d=deltas(),hsr=ts.includes(H)?await gRead(H):[];
@@ -188,6 +186,7 @@ function gSave(){return gRun('Salvando…',async()=>{if(!pend())return toast('Na
   if(!h.env)f(h.ts,h.qtd,h.est?'Estornada':'Saída');else if(h.est&&!h.estEnv)f(h.estTs||h.ts,-h.qtd,'Estorno da saída nº '+(h.lote||''))});
  if(!ts.includes(H)){await gapi(`${sid}:batchUpdate`,{method:'POST',body:JSON.stringify({requests:[{addSheet:{properties:{title:H}}}]})});
   await gapi(`${sid}/values/${encodeURIComponent(qt(H)+'!A1')}?valueInputOption=RAW`,{method:'PUT',body:JSON.stringify({values:[['Saída nº','Data','Hora','Item','Descrição','Cód. no Sistema','Und','Setor','Qtd. saída','Estoque antes','Estoque depois','Retirado por','Observação','Status']]})})}
+ if(ts.includes(H)&&hsr[0]&&!norm(hsr[0][0]).startsWith('saida'))await gapi(`${sid}/values/${encodeURIComponent(qt(H)+'!A1')}?valueInputOption=RAW`,{method:'PUT',body:JSON.stringify({values:[['Saída nº','Data','Hora','Item','Descrição','Cód. no Sistema','Und','Setor','Qtd. saída','Estoque antes','Estoque depois','Retirado por','Observação','Status']]})});
  if(rh.length)await gapi(`${sid}/values/${encodeURIComponent(qt(H))}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,{method:'POST',body:JSON.stringify({values:rh})});
  if(upd.length)await gapi(`${sid}/values:batchUpdate`,{method:'POST',body:JSON.stringify({valueInputOption:'RAW',data:upd})});
  S.hist.forEach(h=>{if(!h.env){h.env=true;h.estEnv=!!h.est}else if(h.est&&!h.estEnv)h.estEnv=true});S.g.last=new Date().toISOString();save();
