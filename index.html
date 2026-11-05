@@ -89,7 +89,7 @@ function vBkp(){$('#main').innerHTML=gBox()+`<p class=note>Fluxo: baixe a planil
 <button class=sec onclick="xl(1)"><b>Baixar modelo de planilha (vazio)</b><div class=meta>Só os cabeçalhos, para preencher e importar</div></button>
 <button class=sec onclick="bk()"><b>Baixar backup completo (.json)</b><div class=meta>Estoque, histórico e lista em andamento, para levar ao outro aparelho</div></button>
 <button class=sec onclick="$('#rf').click()"><b>Restaurar backup (.json)</b><div class=meta>Substitui os dados deste aparelho pelos do arquivo</div></button><input id=rf type=file accept=".json" hidden onchange="rs(this.files[0])">
-<button class="sec dng" onclick="rz()"><b>Limpar todos os dados</b><div class=meta>Apaga os itens importados, o histórico e a lista em andamento deste aparelho</div></button>`}
+<button class="sec dng" onclick="rz()"><b>Limpar todos os dados</b><div class=meta>Apaga os itens importados, o histórico e a lista em andamento deste aparelho</div></button><p class=note>Versão do app: ${VER}</p>`}
 function dl(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
 const day=()=>new Date().toISOString().slice(0,10);
 function bk(){dl(new Blob([JSON.stringify({v:1,S})],{type:'application/json'}),`backup_estoque_${day()}.json`)}
@@ -151,7 +151,7 @@ function gBox(){if(!location.protocol.startsWith('http'))return '<p class=note>A
 function gCfg(){const cid=$('#gc').value.trim(),sid=gid($('#gs').value);if(!cid||!sid)return toast('Informe o ID do cliente Google e o link da planilha.');
  const g=S.g||{};if(g.sid!=sid){if(pend()&&!confirm('Há '+pend()+' saída(s) não salvas que não serão enviadas à nova planilha. Continuar?'))return;S.hist.forEach(h=>{h.env=true;h.estEnv=true})}
  S.g={...g,cid,sid};save();nav();gis().catch(()=>{});toast('Planilha vinculada.');vBkp()}
-const HS='Histórico de saídas';
+const HS='Histórico de saídas',VER='2026-11-03 h2';
 function cmp(d,h){let y,m,dd,H=0,M=0;
  if(typeof d=='number'){const x=new Date((d-25569)*864e5);y=x.getUTCFullYear();m=x.getUTCMonth()+1;dd=x.getUTCDate()}
  else{const a=String(d).match(/(\d+)\/(\d+)\/(\d+)/);if(!a)return null;dd=+a[1];m=+a[2];y=+a[3]}
@@ -168,17 +168,17 @@ function hFromSheet(rows){const hd=Array.from(rows[0]||[],h=>norm(h).trim()),ix=
   (n<0?E:L).push(o)});
  E.forEach(e=>{const m=L.find(x=>x.lote==e.lote&&x.item==e.item&&!x.est)||L.find(x=>x.lote==e.lote&&norm(x.desc)==norm(e.desc)&&!x.est);if(m){m.est=true;m.estEnv=true;m.estTs=e.ts}});
  return L}
-async function pull0(){const{ts,main}=await gTab(),{out}=toCat(await gRead(main)),sh=hFromSheet(ts.includes(HS)?await gRead(HS):[]),D={},ids=new Set(out.map(r=>r[0]));out.forEach(r=>D[norm(r[1])]=r[0]);
+async function pull0(){const{ts,main}=await gTab(),{out}=toCat(await gRead(main)),hn=ts.find(x=>norm(x).trim()=='historico de saidas'),hs=hn?await gRead(hn):[],sh=hFromSheet(hs),D={},ids=new Set(out.map(r=>r[0]));out.forEach(r=>D[norm(r[1])]=r[0]);
  const keys=new Set(sh.map(o=>hkey(o._c,o.desc,o.qtd))),pe=S.hist.filter(h=>h.env&&h.est&&!h.estEnv),P=S.hist.filter(h=>!h.env),R=S.hist.filter(h=>h.env&&!keys.has(hkey(tkey(h.ts),h.desc,h.qtd)));
  R.forEach(h=>{h.leg=true});
  sh.forEach(o=>{o.id=++S.seq;const p=pe.find(h=>hkey(tkey(h.ts),h.desc,h.qtd)==hkey(o._c,o.desc,o.qtd));if(p&&!o.est){o.est=true;o.estEnv=false;o.estTs=p.estTs}delete o._c});
  S.hist=[...P,...R,...sh].sort((a,b)=>new Date(b.ts)-new Date(a.ts)||(b.lote||0)-(a.lote||0));
  S.hist.forEach(h=>{if(!ids.has(h.item)&&D[norm(h.desc)])h.item=D[norm(h.desc)]});
  const d=deltas();S.cat=out;S.stock={};out.forEach(r=>{if(d[r[0]])S.stock[r[0]]=Math.max(0,r[6]+d[r[0]])});applyCat();
- Object.keys(S.cart).forEach(i=>{if(!byId[i])delete S.cart[i];else{S.cart[i]=Math.min(S.cart[i],stock(+i));if(S.cart[i]<1)delete S.cart[i]}});save();nav()}
-function gPull(){return gRun('Atualizando…',async()=>{await pull0();toast(`Planilha atualizada (${BASE.length} itens, ${S.hist.filter(h=>h.env).length} saídas no histórico).`);vBkp()})}
+ Object.keys(S.cart).forEach(i=>{if(!byId[i])delete S.cart[i];else{S.cart[i]=Math.min(S.cart[i],stock(+i));if(S.cart[i]<1)delete S.cart[i]}});save();nav();return{tab:!!hn,rows:Math.max(0,hs.length-1),ok:sh.length}}
+function gPull(){return gRun('Atualizando…',async()=>{const i=await pull0();toast(`Atualizado: ${BASE.length} itens. Histórico: ${i.tab?`${i.ok} de ${i.rows} linhas lidas`:'aba Histórico de saídas não encontrada'}.`);vBkp()})}
 function gSave(){return gRun('Salvando…',async()=>{if(!pend())return toast('Nada para salvar.');
- const H='Histórico de saídas',sid=S.g.sid,{ts,main}=await gTab(),{out,C,rowOf}=toCat(await gRead(main)),d=deltas(),hsr=ts.includes(H)?await gRead(H):[];
+ const sid=S.g.sid,{ts,main}=await gTab(),H=ts.find(x=>norm(x).trim()=='historico de saidas')||'Histórico de saídas',{out,C,rowOf}=toCat(await gRead(main)),d=deltas(),hsr=ts.includes(H)?await gRead(H):[];
  const find=(id,ds)=>out.find(r=>r[0]==id&&norm(r[1])==norm(ds))||out.find(r=>norm(r[1])==norm(ds))||out.find(r=>r[0]==id);
  const upd=[],miss=[];
  Object.keys(d).forEach(id=>{if(!d[id])return;const ref=S.hist.find(h=>h.item==id),r=find(+id,ref.desc);if(!r)return miss.push(ref.desc);upd.push({range:`${qt(main)}!${col(C.qtd)}${rowOf[r[0]]}`,values:[[Math.max(0,r[6]+d[id])]]})});
@@ -217,5 +217,5 @@ function xl(m){const H='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
  {name:'xl/worksheets/sheet2.xml',data:sheet(s2,[9,11,8,7,48,14,8,14,10,10,10,18,28,11])}];
  dl(zip(f),m?'Modelo_planilha_estoque.xlsx':`Estoque_atualizado_${day()}.xlsx`)}
 render();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')){const had=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(had)location.reload()});navigator.serviceWorker.register('sw.js').catch(()=>{})}
 </script></body></html>
