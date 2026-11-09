@@ -25,6 +25,8 @@ nav i{font-style:normal;background:var(--rd);color:#fff;border-radius:9px;paddin
 .note{color:var(--mu);font-size:13px;margin:10px 2px}
 .gh{cursor:pointer}.chev{color:var(--ac);width:14px;font-size:14px}
 .sm2{flex:1;background:var(--card);color:var(--tx);border:1px solid var(--bd);padding:9px;font-size:13px}
+.n.in{color:var(--gn)}
+.sm2.on{background:var(--ac);color:#fff;border-color:var(--ac)}
 .gbox{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:14px;display:grid;gap:8px}
 .sh{font-weight:700;margin:18px 2px 4px;padding-bottom:4px;border-bottom:2px solid var(--ac)}
 .grp{background:var(--card);border:1px solid var(--bd);border-radius:12px;margin:12px 0;overflow:hidden}
@@ -40,16 +42,16 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 const byId={},ORIG=BASE.slice();
 let cx=new Set(),S=load(),tab='est',q='',fs='',ft='',fk='',hq='',who='',obs='';applyCat();if(!BASE.length)tab='bkp';
-function applyCat(){BASE.splice(0,BASE.length,...(S.cat||ORIG));for(const k in byId)delete byId[k];BASE.forEach(r=>byId[r[0]]=r)}
-function load(){try{const x=JSON.parse(localStorage.getItem(K));if(x&&x.hist)return x}catch(e){}return{stock:{},hist:[],cart:{},seq:0}}
+function applyCat(){BASE.splice(0,BASE.length,...(S.cat||ORIG),...(S.extra||[]));for(const k in byId)delete byId[k];BASE.forEach(r=>byId[r[0]]=r)}
+function load(){try{const x=JSON.parse(localStorage.getItem(K));if(x&&x.hist){x.ent=x.ent||[];x.ecart=x.ecart||{};x.extra=x.extra||[];return x}}catch(e){}return{stock:{},hist:[],cart:{},seq:0,ent:[],ecart:{},extra:[]}}
 function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){toast('Não foi possível salvar neste navegador. Baixe o backup.')}}
 const stock=id=>S.stock[id]??byId[id][6];
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',2600)}
 const fmt=ts=>new Date(ts).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'});
 const tagS=c=>c?`<span class=tag>Cód. no Sistema: ${esc(c)}</span>`:'';
-function nav(){const n=Object.keys(S.cart).length;$('#nav').innerHTML=[['est','Estoque'],['sai','Saída'+(n?`<i>${n}</i>`:'')],['his','Histórico'],['bkp','Planilha'+(pend()?`<i>${pend()}</i>`:'')]].map(([k,l])=>`<button class="${tab==k?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
+function nav(){const n=Object.keys(S.cart).length+Object.keys(S.ecart).length;$('#nav').innerHTML=[['est','Estoque'],['sai','Movimentar'+(n?`<i>${n}</i>`:'')],['his','Histórico'],['bkp','Planilha'+(pend()?`<i>${pend()}</i>`:'')]].map(([k,l])=>`<button class="${tab==k?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
 function go(t){tab=t;render()}
-function render(){nav();({est:vEst,sai:vSai,his:vHis,bkp:vBkp})[tab]();scrollTo(0,0)}
+function render(){nav();({est:vEst,sai:vMov,his:vHis,bkp:vBkp})[tab]();scrollTo(0,0)}
 function opts(arr,sel,all){return `<option value="">${all}</option>`+[...new Set(arr)].sort().map(s=>`<option ${s==sel?'selected':''}>${esc(s)}</option>`).join('')}
 function vEst(){
  $('#main').innerHTML=`<div class=tools><input id=q type=search placeholder="Buscar por nome ou código" value="${esc(q)}"><div class=row><select id=fs>${opts(BASE.map(r=>r[4]),fs,'Todos os setores')}</select><select id=ft>${opts(BASE.map(r=>r[3]),ft,'Todos os tipos')}</select></div><div class=row><select id=fk><option value="">Todas as situações</option><option value="low" ${fk?'selected':''}>Zerados ou abaixo do mínimo (${nLow()})</option></select></div></div><div id=list></div>`;
@@ -65,24 +67,56 @@ function card(x){const s=stock(x[0]),c=S.cart[x[0]]||0,low=x[5]>0&&s<=x[5];
  return `<div class=card><div class=inf><b>${esc(x[1])}</b><div class=meta>${x[7]?tagS(x[7]):'<span class="tag no">sem código</span>'}${esc(x[4])} · ${esc(x[3])} · mín. ${x[5]}</div></div><div class=q><span class="n ${s<=0?'z':low?'low':''}">${s}</span><small>${esc(x[2])}</small></div><button class=add onclick="add(${x[0]})" ${s<=0?'disabled':''}>${c?'✓'+c:'+'}</button></div>`}
 function add(id){S.cart[id]=Math.min((S.cart[id]||0)+1,stock(id));save();nav();lEst()}
 function vSai(){const ids=Object.keys(S.cart);
- if(!ids.length){$('#main').innerHTML='<p class=empty>A lista de saída está vazia.<br>Em Estoque, toque em + nos itens que saíram.</p>';return}
- $('#main').innerHTML=ids.map(id=>{const x=byId[id],s=stock(id);return `<div class=card><div class=inf><b>${esc(x[1])}</b><div class=meta>${tagS(x[7])}em estoque: ${s} ${esc(x[2])} · mín. ${x[5]}</div></div><div class=step><button onclick="chg(${id},-1)">−</button><input type=number inputmode=numeric value=${S.cart[id]} onchange="setq(${id},this.value)"><button onclick="chg(${id},1)">+</button></div><button class=x onclick="setq(${id},0)">✕</button></div>`}).join('')+
+ if(!ids.length){$('#main').innerHTML=mvBar()+'<p class=empty>A lista de saída está vazia.<br>Em Estoque, toque em + nos itens que saíram.</p>';return}
+ $('#main').innerHTML=mvBar()+ids.map(id=>{const x=byId[id],s=stock(id);return `<div class=card><div class=inf><b>${esc(x[1])}</b><div class=meta>${tagS(x[7])}em estoque: ${s} ${esc(x[2])} · mín. ${x[5]}</div></div><div class=step><button onclick="chg(${id},-1)">−</button><input type=number inputmode=numeric value=${S.cart[id]} onchange="setq(${id},this.value)"><button onclick="chg(${id},1)">+</button></div><button class=x onclick="setq(${id},0)">✕</button></div>`}).join('')+
  `<div class=form><input placeholder="Retirado por (opcional)" value="${esc(who)}" oninput="who=this.value"><input placeholder="Destino / observação (opcional)" value="${esc(obs)}" oninput="obs=this.value"><button class=pri onclick="conf()">Confirmar saída e dar baixa</button></div>`}
 function chg(id,d){setq(id,(S.cart[id]||0)+d)}
 function setq(id,v){v=Math.min(parseInt(v)||0,stock(id));if(v<1)delete S.cart[id];else S.cart[id]=v;save();nav();vSai()}
 function conf(){const ids=Object.keys(S.cart);if(!ids.length)return;const ts=new Date().toISOString(),lote=(S.lote=(S.lote||0)+1);
  ids.forEach(id=>{const x=byId[id],a=stock(id),n=Math.min(S.cart[id],a);if(n<1)return;S.stock[id]=a-n;
   S.hist.unshift({id:++S.seq,ts,lote,item:+id,desc:x[1],und:x[2],setor:x[4],tipo:x[3],sisc:x[7]||'',qtd:n,antes:a,depois:a-n,quem:who,obs,est:false})});
- S.cart={};who=obs='';save();toast('Saída registrada e estoque atualizado.');go('his')}
-function vHis(){$('#main').innerHTML=`<div class=tools><input id=hq type=search placeholder="Buscar no histórico (nome, código, quem retirou)" value="${esc(hq)}"><div class=row><button class=sm2 onclick="cxAll(1)">Recolher tudo</button><button class=sm2 onclick="cxAll(0)">Expandir tudo</button></div></div><div id=hl></div>`;$('#hq').oninput=e=>{hq=e.target.value;lHis()};lHis()}
-function lHis(){const w=norm(hq).split(/\s+/).filter(Boolean),g=new Map();
- S.hist.filter(h=>w.every(t=>norm(h.desc+' '+h.sisc+' '+h.quem+' '+h.obs+' '+h.setor).includes(t))).forEach(h=>{const k=gk(h);if(!g.has(k))g.set(k,[]);g.get(k).push(h)});
- $('#hl').innerHTML=g.size?[...g.values()].map(a=>{const h=a[0],k=gk(h),col=!hq&&cx.has(String(k));return `<div class=grp><div class=gh onclick="tg('${k}')"><span class=chev>${col?'▸':'▾'}</span><div><b>${S.g&&S.g.sid&&!h.env?'Não salva · ':h.lote?'Saída nº '+h.lote+' · ':''}${fmt(h.ts)}</b><div class=meta>${a.length} ${a.length>1?'itens':'item'}${h.quem?' · Retirado por '+esc(h.quem):''}${h.obs?' · '+esc(h.obs):''}</div></div>${a.filter(x=>!x.est).length>1?`<button class=sm onclick="event.stopPropagation();estG(${h.id})">Estornar tudo</button>`:''}</div>${col?'':a.map(x=>`<div class="it ${x.est?'est':''}"><div class=inf><b>${esc(x.desc)}</b><div class=meta>${tagS(x.sisc)}${esc(x.setor)}</div></div><div class=q><span class="n out">−${x.qtd}</span><small>${x.antes}→${x.depois}</small></div>${x.est?'<span class=tag>estornado</span>':`<button class=x title="Estornar" onclick="est(${x.id})">↺</button>`}</div>`).join('')}</div>`}).join(''):'<p class=empty>Nenhuma saída registrada ainda.</p>'}
+ S.cart={};who=obs='';save();toast('Saída registrada e estoque atualizado.');hv='sai';go('his')}
+let mv='sai',eq='',nf=false,ewho='',eobs='',hv='sai';
+const mvBar=()=>`<div class=row style="margin:6px 0 10px"><button class="sm2 ${mv=='sai'?'on':''}" onclick="mvSet('sai')">Saída</button><button class="sm2 ${mv=='ent'?'on':''}" onclick="mvSet('ent')">Entrada</button></div>`;
+function mvSet(m){mv=m;render()}
+function vMov(){mv=='ent'?vEnt():vSai()}
+function vEnt(){const ids=Object.keys(S.ecart).filter(i=>byId[i]),L=(i,a)=>`<datalist id=${i}>${[...new Set(a)].sort().map(s=>`<option value="${esc(s)}">`).join('')}</datalist>`;
+ $('#main').innerHTML=mvBar()+`<input id=eq type=search placeholder="Buscar item que entrou (nome ou código)" value="${esc(eq)}"><div id=er></div><button class=sm2 style="width:100%;margin:8px 0" onclick="nf=!nf;vEnt()">${nf?'Fechar cadastro':'+ Item novo (não está na planilha)'}</button>`+
+ (nf?`<div class=form><input id=nd placeholder="Descrição do item *"><div class=row><input id=nq type=number inputmode=numeric min=1 placeholder="Qtd. que entrou *"><input id=nu list=lu placeholder="Unidade (un)"></div><div class=row><input id=ns list=ls placeholder="Setor"><input id=nt list=lt placeholder="Tipo (Material)"></div><div class=row><input id=nc placeholder="Cód. no Sistema"><input id=nsn placeholder="Cód. 2"></div><input id=nm type=number inputmode=numeric min=0 placeholder="Qtd. mínima (opcional)"><button class=pri onclick="novoE()">Adicionar à lista de entrada</button></div>${L('lu',BASE.map(r=>r[2]))}${L('ls',BASE.map(r=>r[4]))}${L('lt',BASE.map(r=>r[3]))}`:'')+
+ (ids.length?`<p class=note><b>Itens desta entrada (${ids.length})</b></p>`+ids.map(id=>{const x=byId[id];return `<div class=card><div class=inf><b>${esc(x[1])}</b><div class=meta>${tagS(x[7])}atual: ${stock(+id)} ${esc(x[2])}${S.extra.some(r=>r[0]==id)?' · item novo':''}</div></div><div class=step><button onclick="chgE(${id},-1)">−</button><input type=number inputmode=numeric value=${S.ecart[id]} onchange="setqE(${id},this.value)"><button onclick="chgE(${id},1)">+</button></div><button class=x onclick="setqE(${id},0)">✕</button></div>`}).join('')+
+ `<div class=form><input placeholder="Recebido por (opcional)" value="${esc(ewho)}" oninput="ewho=this.value"><input placeholder="Observação: fornecedor, nota fiscal... (opcional)" value="${esc(eobs)}" oninput="eobs=this.value"><button class=pri onclick="confE()">Confirmar entrada</button></div>`:'<p class=empty>Busque um item acima para dar entrada, ou cadastre um item novo.</p>');
+ $('#eq').oninput=e=>{eq=e.target.value;lEr()};lEr()}
+function lEr(){const w=norm(eq).split(/\s+/).filter(Boolean);
+ $('#er').innerHTML=w.length?(BASE.filter(x=>w.every(t=>norm(x[1]+' '+x[7]+' '+x[4]).includes(t))).slice(0,8).map(x=>`<div class=card><div class=inf><b>${esc(x[1])}</b><div class=meta>${tagS(x[7])}${esc(x[4])} · atual: ${stock(x[0])} ${esc(x[2])}</div></div><button class=add onclick="addE(${x[0]})">${S.ecart[x[0]]?'✓'+S.ecart[x[0]]:'+'}</button></div>`).join('')||'<p class=note>Nenhum item encontrado. Use "+ Item novo".</p>'):''}
+function addE(id){S.ecart[id]=(S.ecart[id]||0)+1;save();nav();vEnt()}
+function chgE(id,d){setqE(id,(S.ecart[id]||0)+d)}
+function setqE(id,v){v=parseInt(v)||0;if(v<1){delete S.ecart[id];const i=S.extra.findIndex(r=>r[0]==id);if(i>=0&&!S.hist.some(h=>h.item==id)&&!S.ent.some(h=>h.item==id)&&!S.cart[id]){S.extra.splice(i,1);delete S.stock[id];applyCat()}}else S.ecart[id]=v;save();nav();vEnt()}
+function novoCore(v){const n=parseInt(v.q);
+ if(!v.d)return toast('Informe a descrição.');if(!n||n<1)return toast('Informe a quantidade que entrou.');
+ if(BASE.some(r=>norm(r[1])==norm(v.d)))return toast('Já existe um item com esse nome. Busque por ele acima.');
+ const id=Math.max(0,...BASE.map(r=>r[0]))+1;S.extra.push([id,v.d,v.u||'un',v.t||'Material',v.s||'Sem setor',parseInt(v.m)||0,0,v.c||'',v.c2||'','','']);applyCat();S.ecart[id]=n;nf=false;save();nav();toast('Item novo adicionado à entrada.');vEnt()}
+function novoE(){const g=i=>$('#'+i).value.trim();novoCore({d:g('nd'),q:g('nq'),u:g('nu'),s:g('ns'),t:g('nt'),c:g('nc'),c2:g('nsn'),m:g('nm')})}
+function confE(){const ids=Object.keys(S.ecart).filter(i=>byId[i]);if(!ids.length)return;const ts=new Date().toISOString(),lote=(S.elote=(S.elote||0)+1);
+ ids.forEach(id=>{const x=byId[id],a=stock(+id),n=S.ecart[id],novo=S.extra.some(r=>r[0]==id)&&!S.ent.some(h=>h.item==id);S.stock[id]=a+n;
+  S.ent.unshift({id:++S.seq,ts,lote,item:+id,desc:x[1],und:x[2],setor:x[4],tipo:x[3],sisc:x[7]||'',qtd:n,antes:a,depois:a+n,quem:ewho,obs:eobs,est:false,novo})});
+ S.ecart={};ewho=eobs='';save();toast('Entrada registrada e estoque atualizado.');hv='ent';go('his')}
+const cur=()=>hv=='ent'?S.ent:S.hist,W=()=>hv=='ent'?{n:'Entrada',q:'Recebido por',nul:'Nenhuma entrada registrada ainda.'}:{n:'Saída',q:'Retirado por',nul:'Nenhuma saída registrada ainda.'};
+function hvSet(v){hv=v;vHis()}
+function vHis(){$('#main').innerHTML=`<div class=tools><div class=row><button class="sm2 ${hv=='sai'?'on':''}" onclick="hvSet('sai')">Saídas</button><button class="sm2 ${hv=='ent'?'on':''}" onclick="hvSet('ent')">Entradas</button></div><input id=hq style="margin-top:8px" type=search placeholder="Buscar no histórico (nome, código, responsável)" value="${esc(hq)}"><div class=row><button class=sm2 onclick="cxAll(1)">Recolher tudo</button><button class=sm2 onclick="cxAll(0)">Expandir tudo</button></div></div><div id=hl></div>`;$('#hq').oninput=e=>{hq=e.target.value;lHis()};lHis()}
 const gk=h=>(h.leg?'l':h.env?'e':'p')+(h.lote||0)+'@'+String(h.ts).slice(0,16);
+function lHis(){const w=norm(hq).split(/\s+/).filter(Boolean),g=new Map(),T=W();
+ cur().filter(h=>w.every(t=>norm(h.desc+' '+h.sisc+' '+h.quem+' '+h.obs+' '+h.setor).includes(t))).forEach(h=>{const k=gk(h);if(!g.has(k))g.set(k,[]);g.get(k).push(h)});
+ $('#hl').innerHTML=g.size?[...g.values()].map(a=>{const h=a[0],k=gk(h),col=!hq&&cx.has(String(k));return `<div class=grp><div class=gh onclick="tg('${k}')"><span class=chev>${col?'▸':'▾'}</span><div><b>${S.g&&S.g.sid&&!h.env?'Não salva · ':h.lote?T.n+' nº '+h.lote+' · ':''}${fmt(h.ts)}</b><div class=meta>${a.length} ${a.length>1?'itens':'item'}${h.quem?' · '+T.q+' '+esc(h.quem):''}${h.obs?' · '+esc(h.obs):''}</div></div>${a.filter(x=>!x.est).length>1?`<button class=sm onclick="event.stopPropagation();estG(${h.id})">Estornar tudo</button>`:''}</div>${col?'':a.map(x=>`<div class="it ${x.est?'est':''}"><div class=inf><b>${esc(x.desc)}</b><div class=meta>${tagS(x.sisc)}${x.novo?'<span class=tag>item novo</span>':''}${esc(x.setor)}</div></div><div class=q><span class="n ${hv=='ent'?'in':'out'}">${hv=='ent'?'+':'−'}${x.qtd}</span><small>${x.antes}→${x.depois}</small></div>${x.est?'<span class=tag>estornado</span>':`<button class=x title="Estornar" onclick="est(${x.id})">↺</button>`}</div>`).join('')}</div>`}).join(''):`<p class=empty>${T.nul}</p>`}
 function tg(k){k=String(k);cx.has(k)?cx.delete(k):cx.add(k);lHis()}
-function cxAll(f){cx=f?new Set(S.hist.map(gk)):new Set();lHis()}
-function est(id){const h=S.hist.find(x=>x.id==id);if(!h||h.est||!confirm('Estornar este item? A quantidade volta ao estoque.'))return;if(!byId[h.item])return toast('Este item não existe mais na planilha.');S.stock[h.item]=stock(h.item)+h.qtd;h.est=true;h.estEnv=false;h.estTs=new Date().toISOString();save();nav();lHis()}
-function estG(id){const h=S.hist.find(x=>x.id==id);if(!h)return;const k=gk(h),a=S.hist.filter(x=>gk(x)==k&&!x.est&&byId[x.item]);if(!a.length||!confirm('Estornar todos os '+a.length+' itens desta saída? As quantidades voltam ao estoque.'))return;a.forEach(x=>{S.stock[x.item]=stock(x.item)+x.qtd;x.est=true;x.estEnv=false;x.estTs=new Date().toISOString()});save();nav();lHis()}
+function cxAll(f){cx=f?new Set(cur().map(gk)):new Set();lHis()}
+function fnd(id){return S.hist.find(x=>x.id==id)||S.ent.find(x=>x.id==id)}
+function est(id){const h=fnd(id),e=h&&S.ent.includes(h);if(!h||h.est||!confirm(e?'Estornar este item da entrada? A quantidade sai do estoque.':'Estornar este item? A quantidade volta ao estoque.'))return;
+ if(!byId[h.item])return toast('Este item não existe mais na planilha.');if(e&&stock(h.item)<h.qtd)return toast('O estoque atual é menor que a entrada; não dá para estornar.');
+ S.stock[h.item]=stock(h.item)+(e?-h.qtd:h.qtd);h.est=true;h.estEnv=false;h.estTs=new Date().toISOString();save();nav();lHis()}
+function estG(id){const h=fnd(id);if(!h)return;const e=S.ent.includes(h),k=gk(h),a=(e?S.ent:S.hist).filter(x=>gk(x)==k&&!x.est&&byId[x.item]);
+ if(!a.length||!confirm('Estornar todos os '+a.length+' itens desta '+(e?'entrada':'saída')+'?'))return;
+ if(e&&a.some(x=>stock(x.item)<x.qtd))return toast('Algum item já tem estoque menor que a entrada; estorne item por item.');
+ a.forEach(x=>{S.stock[x.item]=stock(x.item)+(e?-x.qtd:x.qtd);x.est=true;x.estEnv=false;x.estTs=new Date().toISOString()});save();nav();lHis()}
 function vBkp(){$('#main').innerHTML=gBox()+`<p class=note>Fluxo: baixe a planilha atualizada, adicione os itens novos nela pelo Excel e importe de volta aqui. Tudo funciona sem internet.</p>
 <button class=sec onclick="xl()"><b>Baixar planilha atualizada (.xlsx)</b><div class=meta>Mesmas colunas da original, com o estoque já baixado + aba Histórico de saídas</div></button>
 <button class=sec onclick="$('#xf').click()"><b>Importar planilha (.xlsx)</b><div class=meta>Carrega os itens e as quantidades da planilha no app. O histórico de saídas é mantido</div></button><input id=xf type=file accept=".xlsx" hidden onchange="imp(this.files[0]);this.value=''">
@@ -93,8 +127,8 @@ function vBkp(){$('#main').innerHTML=gBox()+`<p class=note>Fluxo: baixe a planil
 function dl(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
 const day=()=>new Date().toISOString().slice(0,10);
 function bk(){dl(new Blob([JSON.stringify({v:1,S})],{type:'application/json'}),`backup_estoque_${day()}.json`)}
-function rs(f){if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result).S;if(!x||!Array.isArray(x.hist)||!x.stock)throw 0;x.cart=x.cart||{};S=x;applyCat();save();toast('Backup restaurado.');render()}catch(e){toast('Arquivo de backup inválido.')}};r.readAsText(f)}
-function rz(){if(confirm('Apagar itens importados, histórico e lista em andamento deste aparelho?')){S={stock:{},hist:[],cart:{},seq:0,g:S.g};applyCat();save();render()}}
+function rs(f){if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result).S;if(!x||!Array.isArray(x.hist)||!x.stock)throw 0;x.cart=x.cart||{};S=x;S.ent=S.ent||[];S.ecart=S.ecart||{};S.extra=S.extra||[];applyCat();save();toast('Backup restaurado.');render()}catch(e){toast('Arquivo de backup inválido.')}};r.readAsText(f)}
+function rz(){if(confirm('Apagar itens importados, histórico e lista em andamento deste aparelho?')){S={stock:{},hist:[],cart:{},seq:0,ent:[],ecart:{},extra:[],g:S.g};applyCat();save();render()}}
 /* ---- importação .xlsx (sem bibliotecas) ---- */
 async function inflate(b){return await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text()}
 async function unzip(buf){const u=new Uint8Array(buf),dv=new DataView(buf),td=new TextDecoder();let e=u.length-22;while(e>=0&&dv.getUint32(e,true)!=0x06054b50)e--;if(e<0)throw 0;
@@ -118,22 +152,24 @@ async function readXlsx(buf){const z=await unzip(buf),P=s=>new DOMParser().parse
 function toCat(rows){const hd=Array.from(rows[0]||[],h=>norm(h).trim()),ix=k=>hd.findIndex(k);
  const C={item:ix(h=>h=='item'),desc:ix(h=>h.startsWith('descri')),und:ix(h=>h.startsWith('und')),tipo:ix(h=>h=='tipo'),setor:ix(h=>h=='setor'),min:ix(h=>h.includes('minima')),qtd:ix(h=>h.includes('estoque')),sisc:ix(h=>h.includes('siscofis')||h.includes('no sistema')),sinapi:ix(h=>h.includes('sinapi')||/^cod\.?\s*2$/.test(h)),orig:ix(h=>h=='origem')};
  if(C.desc<0||C.qtd<0)throw new Error('Cabeçalho não reconhecido: preciso das colunas Descrição e Quantidade em estoque.');
- const g=(r,i)=>i<0||r[i]==null?'':r[i],used=new Set(),out=[],rowOf={};let mx=0;
+ const g=(r,i)=>i<0||r[i]==null?'':r[i],used=new Set(),out=[],rowOf={},blank=[];let mx=0;
  rows.forEach((r,i)=>{if(i){const n=+g(r,C.item);if(n>mx)mx=n}});
- rows.forEach((r,i)=>{if(!i)return;const d=String(g(r,C.desc)).trim();if(!d)return;let id=+g(r,C.item);if(!id||used.has(id))id=++mx;used.add(id);rowOf[id]=i+1;
+ rows.forEach((r,i)=>{if(!i)return;const d=String(g(r,C.desc)).trim();if(!d)return;let id=+g(r,C.item);if(!id||used.has(id)){const b=!id;id=++mx;if(b)blank.push([id,i+1])}used.add(id);rowOf[id]=i+1;
   out.push([id,d,String(g(r,C.und)||'un'),String(g(r,C.tipo)||'Material'),String(g(r,C.setor)||'Sem setor'),+g(r,C.min)||0,Math.max(0,+g(r,C.qtd)||0),String(g(r,C.sisc)).trim(),String(g(r,C.sinapi)).trim(),String(g(r,C.orig)),String(g(r,10))])});
- if(!out.length)throw new Error('Nenhum item encontrado na planilha.');return{out,C,rowOf}}
+ if(!out.length)throw new Error('Nenhum item encontrado na planilha.');return{out,C,rowOf,blank}}
 async function imp(f){if(!f)return;
  try{const{out}=toCat(await readXlsx(await f.arrayBuffer()));
   if(!confirm(`Importar ${out.length} itens? As quantidades do app passam a ser as da planilha e a lista de saída em andamento é limpa. O histórico de saídas é mantido.`))return;
-  S.cat=out;S.stock={};S.cart={};applyCat();save();toast(`${out.length} itens importados.`);render()
+  S.cat=out;S.extra=[];S.stock={};S.cart={};S.ecart={};applyCat();save();toast(`${out.length} itens importados.`);render()
  }catch(e){toast('Não consegui ler a planilha. Use um .xlsx com os cabeçalhos do modelo.')}}
 /* ---- Google Planilhas (salvar e atualizar sob demanda) ---- */
 let tok=null,tokExp=0,gb=0;
 const st=m=>{const e=$('#gst');if(e)e.textContent=m},qt=s=>"'"+s.replace(/'/g,"''")+"'";
 const gid=u=>{u=String(u).trim();const m=u.match(/\/d\/([\w-]+)/);return m?m[1]:/^[\w-]{20,}$/.test(u)?u:''};
-function pend(){return S.g&&S.g.sid?S.hist.filter(h=>!h.env||(h.est&&!h.estEnv)).length:0}
-function deltas(){const d={};S.hist.forEach(h=>{if(!h.env&&!h.est)d[h.item]=(d[h.item]||0)-h.qtd;else if(h.env&&h.est&&!h.estEnv)d[h.item]=(d[h.item]||0)+h.qtd});return d}
+function pend(){return S.g&&S.g.sid?[...S.hist,...S.ent].filter(h=>!h.env||(h.est&&!h.estEnv)).length:0}
+function deltas(){const d={},a=(i,n)=>{d[i]=(d[i]||0)+n};
+ S.hist.forEach(h=>{if(!h.env&&!h.est)a(h.item,-h.qtd);else if(h.env&&h.est&&!h.estEnv)a(h.item,h.qtd)});
+ S.ent.forEach(h=>{if(!h.env&&!h.est)a(h.item,h.qtd);else if(h.env&&h.est&&!h.estEnv)a(h.item,-h.qtd)});return d}
 function gis(){return new Promise((ok,no)=>{if(window.google&&google.accounts&&google.accounts.oauth2)return ok();const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.onload=ok;s.onerror=()=>no(new Error('Sem conexão com o Google. Verifique a internet.'));document.head.appendChild(s)})}
 async function auth(){if(tok&&Date.now()<tokExp)return tok;if(!S.g||!S.g.cid)throw new Error('Informe o ID do cliente Google.');await gis();
  return new Promise((ok,no)=>{google.accounts.oauth2.initTokenClient({client_id:S.g.cid,scope:'https://www.googleapis.com/auth/spreadsheets',
@@ -141,7 +177,7 @@ async function auth(){if(tok&&Date.now()<tokExp)return tok;if(!S.g||!S.g.cid)thr
   error_callback:()=>no(new Error('Login cancelado ou janela bloqueada pelo navegador.'))}).requestAccessToken()})}
 async function gapi(path,opt={}){const t=await auth(),r=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+path,{...opt,headers:{Authorization:'Bearer '+t,'Content-Type':'application/json'}});
  if(!r.ok){let m='';try{m=(await r.json()).error.message}catch(e){}if(r.status==401)tok=null;throw new Error(r.status==403||r.status==404?'Sem acesso à planilha. Confira o link e a conta Google usada. '+m:'Erro do Google ('+r.status+'). '+m)}return r.json()}
-async function gTab(){const m=await gapi(`${S.g.sid}?fields=sheets.properties.title`),ts=m.sheets.map(s=>s.properties.title);return{ts,main:ts.find(x=>norm(x)=='estoque')||ts[0]}}
+async function gTab(){const m=await gapi(`${S.g.sid}?fields=sheets.properties(sheetId,title)`),P=m.sheets.map(s=>s.properties),ts=P.map(p=>p.title);return{ts,P,main:ts.find(x=>norm(x)=='estoque')||ts[0]}}
 async function gRead(tab){return(await gapi(`${S.g.sid}/values/${encodeURIComponent(qt(tab))}?valueRenderOption=UNFORMATTED_VALUE`)).values||[]}
 async function gRun(msg,fn){if(gb)return;gb=1;st(msg);try{await fn()}catch(e){st('Erro: '+e.message);toast(e.message)}finally{gb=0}}
 function gBox(){if(!location.protocol.startsWith('http'))return '<p class=note>A ligação com o Google Planilhas só funciona na versão publicada (GitHub Pages), não no arquivo HTML avulso.</p>';
@@ -149,9 +185,9 @@ function gBox(){if(!location.protocol.startsWith('http'))return '<p class=note>A
  return `<div class=gbox><b>Google Planilhas</b><input id=gc placeholder="ID do cliente Google (veja o GOOGLE.md)" value="${esc(g.cid||'')}"><input id=gs placeholder="Link da planilha do Google" value="${g.sid?esc('https://docs.google.com/spreadsheets/d/'+g.sid):''}"><button class=sec onclick="gCfg()"><b>${g.sid?'Salvar vínculo':'Vincular planilha'}</b></button>`+
  (g.sid?`<button class=sm2 onclick="gPull()">Atualizar da planilha</button><button class=pri onclick="gSave()">Salvar na planilha${n?` (${n} pendente${n>1?'s':''})`:''}</button><div class=meta id=gst>${g.last?'Último salvamento: '+fmt(g.last):'Nada salvo ainda.'}</div>`:'')+`</div>`}
 function gCfg(){const cid=$('#gc').value.trim(),sid=gid($('#gs').value);if(!cid||!sid)return toast('Informe o ID do cliente Google e o link da planilha.');
- const g=S.g||{};if(g.sid!=sid){if(pend()&&!confirm('Há '+pend()+' saída(s) não salvas que não serão enviadas à nova planilha. Continuar?'))return;S.hist.forEach(h=>{h.env=true;h.estEnv=true})}
+ const g=S.g||{};if(g.sid!=sid){if(pend()&&!confirm('Há '+pend()+' saída(s) não salvas que não serão enviadas à nova planilha. Continuar?'))return;[...S.hist,...S.ent].forEach(h=>{h.env=true;h.estEnv=true})}
  S.g={...g,cid,sid};save();nav();gis().catch(()=>{});toast('Planilha vinculada.');vBkp()}
-const HS='Histórico de saídas',VER='2026-11-03 h3';
+const HS='Histórico de saídas',HE='Histórico de entradas',VER='2026-11-09 h4';
 function cmp(d,h){let y,m,dd,H=0,M=0;
  if(typeof d=='number'){const x=new Date((d-25569)*864e5);y=x.getUTCFullYear();m=x.getUTCMonth()+1;dd=x.getUTCDate()}
  else{const a=String(d).match(/(\d+)\/(\d+)\/(\d+)/);if(!a)return null;dd=+a[1];m=+a[2];y=+a[3]}
@@ -163,33 +199,50 @@ function hFromSheet(rows){const isD=v=>typeof v=='number'?v>20000:/\d+\/\d+\/\d+
  rows.forEach(r=>{let o;if(isD(r[1]))o=0;else if(isD(r[0]))o=-1;else return;
   const v=j=>{const x=r[j+o];return x==null?'':x},c=cmp(v(1),v(2)),n=+v(8);if(!c||!n)return;
   const e0=norm(v(13))=='estornada';
-  (n<0?E:L).push({lote:o?0:+v(0)||0,ts:new Date(c[0],c[1]-1,c[2],c[3],c[4]).toISOString(),item:+v(3),desc:String(v(4)),sisc:String(v(5)),und:String(v(6)),setor:String(v(7)),tipo:'',qtd:Math.abs(n),antes:+v(9)||0,depois:+v(10)||0,quem:String(v(11)),obs:String(v(12)),est:e0,env:true,estEnv:e0,_c:c})});
+  (n<0?E:L).push({lote:o?0:+v(0)||0,ts:new Date(c[0],c[1]-1,c[2],c[3],c[4]).toISOString(),item:+v(3),desc:String(v(4)),sisc:String(v(5)),und:String(v(6)),setor:String(v(7)),tipo:'',qtd:Math.abs(n),antes:+v(9)||0,depois:+v(10)||0,quem:String(v(11)),obs:String(v(12)),est:e0,novo:/item novo/.test(norm(v(13))),env:true,estEnv:e0,_c:c})});
  E.forEach(e=>{const m=L.find(x=>x.lote==e.lote&&x.item==e.item&&!x.est)||L.find(x=>x.lote==e.lote&&norm(x.desc)==norm(e.desc)&&!x.est);if(m){m.est=true;m.estEnv=true;m.estTs=e.ts}});
  L.tot=L.length+E.length;return L}
-async function pull0(){const{ts,main}=await gTab(),{out}=toCat(await gRead(main)),hn=ts.find(x=>norm(x).trim()=='historico de saidas'),hs=hn?await gRead(hn):[],sh=hFromSheet(hs),D={},ids=new Set(out.map(r=>r[0]));out.forEach(r=>D[norm(r[1])]=r[0]);
- const keys=new Set(sh.map(o=>hkey(o._c,o.desc,o.qtd))),pe=S.hist.filter(h=>h.env&&h.est&&!h.estEnv),P=S.hist.filter(h=>!h.env),R=S.hist.filter(h=>h.env&&!keys.has(hkey(tkey(h.ts),h.desc,h.qtd)));
+function mergeH(Lc,sh){const keys=new Set(sh.map(o=>hkey(o._c,o.desc,o.qtd))),pe=Lc.filter(h=>h.env&&h.est&&!h.estEnv),P=Lc.filter(h=>!h.env),R=Lc.filter(h=>h.env&&!keys.has(hkey(tkey(h.ts),h.desc,h.qtd)));
  R.forEach(h=>{h.leg=true});
  sh.forEach(o=>{o.id=++S.seq;const p=pe.find(h=>hkey(tkey(h.ts),h.desc,h.qtd)==hkey(o._c,o.desc,o.qtd));if(p&&!o.est){o.est=true;o.estEnv=false;o.estTs=p.estTs}delete o._c});
- S.hist=[...P,...R,...sh].sort((a,b)=>new Date(b.ts)-new Date(a.ts)||(b.lote||0)-(a.lote||0));
- S.hist.forEach(h=>{if(!ids.has(h.item)&&D[norm(h.desc)])h.item=D[norm(h.desc)]});
- const d=deltas();S.cat=out;S.stock={};out.forEach(r=>{if(d[r[0]])S.stock[r[0]]=Math.max(0,r[6]+d[r[0]])});applyCat();
- Object.keys(S.cart).forEach(i=>{if(!byId[i])delete S.cart[i];else{S.cart[i]=Math.min(S.cart[i],stock(+i));if(S.cart[i]<1)delete S.cart[i]}});save();nav();return{tab:!!hn,rows:Math.max(0,hs.length-1),ok:sh.tot||0}}
-function gPull(){return gRun('Atualizando…',async()=>{const i=await pull0();toast(`Atualizado: ${BASE.length} itens. Histórico: ${i.tab?`${i.ok} de ${i.rows} linhas lidas`:'aba Histórico de saídas não encontrada'}.`);vBkp()})}
+ return[...P,...R,...sh].sort((a,b)=>new Date(b.ts)-new Date(a.ts)||(b.lote||0)-(a.lote||0))}
+async function pull0(){const{ts,main}=await gTab(),{out}=toCat(await gRead(main)),tn=k=>ts.find(x=>norm(x).trim()==k),hn=tn('historico de saidas'),en=tn('historico de entradas'),
+ hs=hn?await gRead(hn):[],es=en?await gRead(en):[],sh=hFromSheet(hs),se=hFromSheet(es),D={};out.forEach(r=>D[norm(r[1])]=r[0]);
+ S.hist=mergeH(S.hist,sh);S.ent=mergeH(S.ent,se);
+ [...S.hist,...S.ent].forEach(h=>{const n=D[norm(h.desc)];if(n&&n!==h.item)h.item=n});
+ S.extra=S.extra.filter(r=>!D[norm(r[1])]);
+ const d=deltas();S.cat=out;S.stock={};out.concat(S.extra).forEach(r=>{if(d[r[0]])S.stock[r[0]]=Math.max(0,r[6]+d[r[0]])});applyCat();
+ Object.keys(S.cart).forEach(i=>{if(!byId[i])delete S.cart[i];else{S.cart[i]=Math.min(S.cart[i],stock(+i));if(S.cart[i]<1)delete S.cart[i]}});
+ Object.keys(S.ecart).forEach(i=>{if(!byId[i])delete S.ecart[i]});
+ save();nav();return{tab:!!hn,rows:Math.max(0,hs.length-1),ok:sh.tot||0,et:!!en,erows:Math.max(0,es.length-1),eok:se.tot||0}}
+function gPull(){return gRun('Atualizando…',async()=>{const i=await pull0();toast(`Atualizado: ${BASE.length} itens. Saídas: ${i.tab?i.ok+' de '+i.rows+' linhas':'aba não encontrada'}. Entradas: ${i.et?i.eok+' de '+i.erows+' linhas':'sem aba ainda'}.`);vBkp()})}
 function gSave(){return gRun('Salvando…',async()=>{if(!pend())return toast('Nada para salvar.');
- const sid=S.g.sid,{ts,main}=await gTab(),H=ts.find(x=>norm(x).trim()=='historico de saidas')||'Histórico de saídas',{out,C,rowOf}=toCat(await gRead(main)),d=deltas(),hsr=ts.includes(H)?await gRead(H):[];
+ const sid=S.g.sid,{ts,P,main}=await gTab(),{out,C,rowOf,blank}=toCat(await gRead(main)),d=deltas(),tn=k=>ts.find(x=>norm(x).trim()==k),
+  Hs=tn('historico de saidas'),He=tn('historico de entradas'),hsr=Hs?await gRead(Hs):[],her=He?await gRead(He):[],sId=n=>(P.find(p=>p.title==n)||{}).sheetId;
  const find=(id,ds)=>out.find(r=>r[0]==id&&norm(r[1])==norm(ds))||out.find(r=>norm(r[1])==norm(ds))||out.find(r=>r[0]==id);
- const upd=[],miss=[];
- Object.keys(d).forEach(id=>{if(!d[id])return;const ref=S.hist.find(h=>h.item==id),r=find(+id,ref.desc);if(!r)return miss.push(ref.desc);upd.push({range:`${qt(main)}!${col(C.qtd)}${rowOf[r[0]]}`,values:[[Math.max(0,r[6]+d[id])]]})});
+ const cl=v=>v===''||v==null?{}:{userEnteredValue:typeof v=='number'?{numberValue:v}:{stringValue:String(v)}},rw=a=>a.map(r=>({values:r.map(cl)}));
+ const reqs=[],miss=[],nw=[];
+ Object.keys(d).forEach(id=>{if(!d[id])return;const ref=S.hist.find(h=>h.item==id)||S.ent.find(h=>h.item==id),ex=S.extra.find(r=>r[0]==id),r=find(+id,ref.desc);
+  if(r)reqs.push({updateCells:{start:{sheetId:sId(main),rowIndex:rowOf[r[0]]-1,columnIndex:C.qtd},rows:rw([[Math.max(0,r[6]+d[id])]]),fields:'userEnteredValue'}});
+  else if(ex)nw.push([ex,Math.max(0,ex[6]+d[id])]);else miss.push(ref.desc)});
  if(miss.length)throw new Error('Não achei na planilha: '+[...new Set(miss)].slice(0,3).join('; ')+'. Nada foi salvo.');
- {const mxl=Math.max(0,...hFromSheet(hsr).map(o=>o.lote)),pl=[...new Set(S.hist.filter(h=>!h.env&&h.lote).map(h=>h.lote))].sort((a,b)=>a-b),mp={};pl.forEach((l,i)=>mp[l]=mxl+i+1);S.hist.forEach(h=>{if(!h.env&&h.lote)h.lote=mp[h.lote]})}
- const rh=[];[...S.hist].reverse().forEach(h=>{const f=(w,n,s)=>{const x=new Date(w);rh.push([h.lote||'',x.toLocaleDateString('pt-BR'),x.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),h.item,h.desc,h.sisc,h.und,h.setor,n,h.antes,h.depois,h.quem,h.obs,s])};
-  if(!h.env)f(h.ts,h.qtd,h.est?'Estornada':'Saída');else if(h.est&&!h.estEnv)f(h.estTs||h.ts,-h.qtd,'Estorno da saída nº '+(h.lote||''))});
- if(!ts.includes(H)){await gapi(`${sid}:batchUpdate`,{method:'POST',body:JSON.stringify({requests:[{addSheet:{properties:{title:H}}}]})});
-  await gapi(`${sid}/values/${encodeURIComponent(qt(H)+'!A1')}?valueInputOption=RAW`,{method:'PUT',body:JSON.stringify({values:[['Saída nº','Data','Hora','Item','Descrição','Cód. no Sistema','Und','Setor','Qtd. saída','Estoque antes','Estoque depois','Retirado por','Observação','Status']]})})}
- if(ts.includes(H)&&hsr[0]&&!norm(hsr[0][0]).startsWith('saida'))await gapi(`${sid}/values/${encodeURIComponent(qt(H)+'!A1')}?valueInputOption=RAW`,{method:'PUT',body:JSON.stringify({values:[['Saída nº','Data','Hora','Item','Descrição','Cód. no Sistema','Und','Setor','Qtd. saída','Estoque antes','Estoque depois','Retirado por','Observação','Status']]})});
- if(rh.length)await gapi(`${sid}/values/${encodeURIComponent(qt(H))}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,{method:'POST',body:JSON.stringify({values:rh})});
- if(upd.length)await gapi(`${sid}/values:batchUpdate`,{method:'POST',body:JSON.stringify({valueInputOption:'RAW',data:upd})});
- S.hist.forEach(h=>{if(!h.env){h.env=true;h.estEnv=!!h.est}else if(h.est&&!h.estEnv)h.estEnv=true});S.g.last=new Date().toISOString();save();
+ if(C.item>=0)blank.forEach(([id,row])=>reqs.push({updateCells:{start:{sheetId:sId(main),rowIndex:row-1,columnIndex:C.item},rows:rw([[id]]),fields:'userEnteredValue'}}));
+ if(nw.length){const w=Math.max(10,...Object.values(C))+1;
+  reqs.push({appendCells:{sheetId:sId(main),rows:rw(nw.map(([ex,qn])=>{const a=Array(w).fill(''),put=(k,v)=>{if(C[k]>=0)a[C[k]]=v};put('item',ex[0]);put('desc',ex[1]);put('und',ex[2]);put('tipo',ex[3]);put('setor',ex[4]);put('min',ex[5]);put('qtd',qn);put('sisc',ex[7]);put('sinapi',ex[8]);put('orig',ex[9]);return a})),fields:'userEnteredValue'}})}
+ const mk=(list,lo,word)=>{const mx=Math.max(0,...hFromSheet(lo).map(o=>o.lote)),pl=[...new Set(list.filter(h=>!h.env&&h.lote).map(h=>h.lote))].sort((a,b)=>a-b),mp={};pl.forEach((l,i)=>mp[l]=mx+i+1);list.forEach(h=>{if(!h.env&&h.lote)h.lote=mp[h.lote]});
+  const rows=[];[...list].reverse().forEach(h=>{const f=(w,n,s)=>{const x=new Date(w);rows.push([h.lote||'',x.toLocaleDateString('pt-BR'),x.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),h.item,h.desc,h.sisc,h.und,h.setor,n,h.antes,h.depois,h.quem,h.obs,s])};
+   if(!h.env)f(h.ts,h.qtd,h.est?'Estornada':h.novo?word+' (item novo)':word);else if(h.est&&!h.estEnv)f(h.estTs||h.ts,-h.qtd,'Estorno da '+word.toLowerCase()+' nº '+(h.lote||''))});return rows};
+ const HD=(a,b,c)=>[a+' nº','Data','Hora','Item','Descrição','Cód. no Sistema','Und','Setor','Qtd. '+b,'Estoque antes','Estoque depois',c,'Observação','Status'];
+ const tbl=[[S.hist,hsr,Hs,HS,'Saída','saída',HD('Saída','saída','Retirado por'),'saida'],[S.ent,her,He,HE,'Entrada','entrada',HD('Entrada','entrada','Recebido por'),'entrada']],fresh=[];
+ for(const[list,lo,found,def,word,,hd,pre]of tbl){const rows=mk(list,lo,word);
+  if(!found){if(rows.length)fresh.push([def,[hd,...rows]]);continue}
+  if(!lo[0]||!norm(lo[0][0]||'').startsWith(pre))reqs.push({updateCells:{start:{sheetId:sId(found),rowIndex:0,columnIndex:0},rows:rw([hd]),fields:'userEnteredValue'}});
+  if(rows.length)reqs.push({appendCells:{sheetId:sId(found),rows:rw(rows),fields:'userEnteredValue'}})}
+ if(fresh.length){const r=await gapi(`${sid}:batchUpdate`,{method:'POST',body:JSON.stringify({requests:fresh.map(([n])=>({addSheet:{properties:{title:n}}}))})});
+  fresh.forEach(([n,rows],i)=>reqs.push({appendCells:{sheetId:r.replies[i].addSheet.properties.sheetId,rows:rw(rows),fields:'userEnteredValue'}}))}
+ if(reqs.length)await gapi(`${sid}:batchUpdate`,{method:'POST',body:JSON.stringify({requests:reqs})});
+ [...S.hist,...S.ent].forEach(h=>{if(!h.env){h.env=true;h.estEnv=!!h.est}else if(h.est&&!h.estEnv)h.estEnv=true});
+ S.extra=S.extra.filter(r=>!nw.some(([e])=>e===r));S.g.last=new Date().toISOString();save();
  await pull0();toast('Alterações salvas na planilha.');vBkp()})}
 /* ---- exportação .xlsx (sem bibliotecas) ---- */
 const xe=s=>String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -206,14 +259,16 @@ function zip(files){const en=new TextEncoder(),parts=[],cd=[];let off=0;
 function xl(m){const H='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',NS='http://schemas.openxmlformats.org/',M=NS+'spreadsheetml/2006/main',R=NS+'officeDocument/2006/relationships';
  const s1=[['Item','Descrição','Und Medida','Tipo','Setor','Quantidade Mínima','Quantidade em estoque','Cód. no Sistema','Cód. 2','Origem','']].concat(m?[]:BASE.map(r=>{const a=r.slice();a[6]=stock(r[0]);return a}));
  const s2=[['Saída nº','Data','Hora','Item','Descrição','Cód. no Sistema','Und','Setor','Qtd. saída','Estoque antes','Estoque depois','Retirado por','Observação','Status']].concat(m?[]:S.hist.map(h=>{const d=new Date(h.ts);return[h.lote||'',d.toLocaleDateString('pt-BR'),d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),h.item,h.desc,h.sisc,h.und,h.setor,h.qtd,h.antes,h.depois,h.quem,h.obs,h.est?'Estornada':'Saída']}));
+ const s3=[['Entrada nº','Data','Hora','Item','Descrição','Cód. no Sistema','Und','Setor','Qtd. entrada','Estoque antes','Estoque depois','Recebido por','Observação','Status']].concat(m?[]:S.ent.map(h=>{const d=new Date(h.ts);return[h.lote||'',d.toLocaleDateString('pt-BR'),d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),h.item,h.desc,h.sisc,h.und,h.setor,h.qtd,h.antes,h.depois,h.quem,h.obs,h.est?'Estornada':h.novo?'Entrada (item novo)':'Entrada']}));
  const f=[
- {name:'[Content_Types].xml',data:`${H}<Types xmlns="${NS}package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`},
+ {name:'[Content_Types].xml',data:`${H}<Types xmlns="${NS}package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`},
  {name:'_rels/.rels',data:`${H}<Relationships xmlns="${NS}package/2006/relationships"><Relationship Id="rId1" Type="${R}/officeDocument" Target="xl/workbook.xml"/></Relationships>`},
- {name:'xl/workbook.xml',data:`${H}<workbook xmlns="${M}" xmlns:r="${R}"><sheets><sheet name="Estoque" sheetId="1" r:id="rId1"/><sheet name="Histórico de saídas" sheetId="2" r:id="rId2"/></sheets></workbook>`},
- {name:'xl/_rels/workbook.xml.rels',data:`${H}<Relationships xmlns="${NS}package/2006/relationships"><Relationship Id="rId1" Type="${R}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${R}/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="${R}/styles" Target="styles.xml"/></Relationships>`},
+ {name:'xl/workbook.xml',data:`${H}<workbook xmlns="${M}" xmlns:r="${R}"><sheets><sheet name="Estoque" sheetId="1" r:id="rId1"/><sheet name="Histórico de saídas" sheetId="2" r:id="rId2"/><sheet name="Histórico de entradas" sheetId="3" r:id="rId4"/></sheets></workbook>`},
+ {name:'xl/_rels/workbook.xml.rels',data:`${H}<Relationships xmlns="${NS}package/2006/relationships"><Relationship Id="rId1" Type="${R}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${R}/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="${R}/styles" Target="styles.xml"/><Relationship Id="rId4" Type="${R}/worksheet" Target="worksheets/sheet3.xml"/></Relationships>`},
  {name:'xl/styles.xml',data:`${H}<styleSheet xmlns="${M}"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs></styleSheet>`},
  {name:'xl/worksheets/sheet1.xml',data:sheet(s1,[7,48,12,12,14,10,12,14,12,10,30])},
- {name:'xl/worksheets/sheet2.xml',data:sheet(s2,[9,11,8,7,48,14,8,14,10,10,10,18,28,11])}];
+ {name:'xl/worksheets/sheet2.xml',data:sheet(s2,[9,11,8,7,48,14,8,14,10,10,10,18,28,11])},
+ {name:'xl/worksheets/sheet3.xml',data:sheet(s3,[9,11,8,7,48,14,8,14,10,10,10,18,28,11])}];
  dl(zip(f),m?'Modelo_planilha_estoque.xlsx':`Estoque_atualizado_${day()}.xlsx`)}
 render();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http')){const had=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(had)location.reload()});navigator.serviceWorker.register('sw.js').catch(()=>{})}
